@@ -9,14 +9,14 @@ func main() {
 	var inventory Inventory
 	inventory, err = GetInventory()
 	if err != nil {
-		fmt.Printf("%v", err)
+		fmt.Printf("%v\n", err)
 		return
 	}
-	//fmt.Printf("%v \n",inventory)
 	errs := runTests(inventory)
 	if len(errs) > 0 {
-		fmt.Printf("%v tests failed.\n", len(errs))
-		fmt.Printf("%v\n", errs)
+		fmt.Printf("# Conclusion\n\n%v tests failed.\n\n", len(errs))
+		for i,err := range errs {
+			fmt.Printf("%v. `%v`\n",i+1,err)
+		}
 	}
-	//fmt.Printf("%v",inventory)
 }
