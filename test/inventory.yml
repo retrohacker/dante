@@ -1,0 +1,7 @@
+images:
+  - name: "nodesource/jessie:0.12.0"
+    path: "./debian/jessie/node/0.12.0"
+    test: ["./tests/node","./tests/node12"]
+  - name: "nodesource/jessie:iojs-1.4.2"
+    path: "./debian/jessie/iojs/1.4.2"
+    test: "./tests/iojs"
