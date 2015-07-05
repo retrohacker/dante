@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"io/ioutil"
 	"strconv"
 )
 
@@ -15,6 +16,7 @@ func buildImage(name string, path string) (output string, err error) {
 
 	cmd := exec.Command("docker", "build", "--no-cache", "-t", name, ".")
 	cmd.Dir, err = filepath.Abs(path)
+	fmt.Printf("Command: `%v`, Args: `%v`, Dir: `%v`\n",cmd.Path,cmd.Args,cmd.Dir)
 	if err != nil {
 		return
 	}
@@ -45,26 +47,34 @@ func runTests(inventory Inventory) (errs []error) {
 		panic(fmt.Sprintf("Unable to get absolute path to temp directory: `%v`\n\n", err))
 	}
 	for _, image := range inventory["images"] {
-		fmt.Printf("# Running `%v`\n\n",image["name"].(string))
 		err = nil
+		fmt.Printf("# Running `%v`\n\n## Building Image\n\n",image["name"].(string))
 		output, err = buildImage(image["name"].(string), image["path"].(string))
-		errs = append(errs, err)
 		fmt.Printf("```\n%v\n```\n", string(output))
 		if err != nil {
 			fmt.Printf("**Failed** with error: `%v`\n\n",err)
+			errs = append(errs, err)
 			continue
 		}
 		//Make sure test is an array of strings, else convert it to one.
 		tests := getTestArray(image)
+		fmt.Printf("Array of tests: `%v`\n",tests)
 		for testNum, test := range tests {
 			err = nil
+			var testpath string
+			fmt.Printf("## Running test #%v\n\n",testNum)
 			testname := image["name"].(string) + "-test" + strconv.Itoa(testNum+1)
+			testpath,err = filepath.Abs(test)
 			os.RemoveAll(tempDir)
-			copyDir(test, tempDir)
+			fmt.Printf("Copying `%v` to `%v`\n",testpath,tempDir)
+			copyDir(testpath, tempDir)
 			dockerfile := filepath.Join(tempDir, "Dockerfile")
 			prependFile(dockerfile, "FROM "+image["name"].(string)+"\n")
+			contents,err := ioutil.ReadFile(dockerfile)
+			fmt.Printf("Contents of dockerfile `%v`:\n\n```\n%v\n```\n\n",dockerfile,string(contents))
+			fmt.Printf("Building `%v` from `%v`",testname,tempDir)
+			output, err = buildImage(testname, tempDir)
 			fmt.Printf("```\n%v\n```\n", string(output))
-			output, err = buildImage(testname, test)
 			if err != nil {
 				fmt.Printf("**Failed** with error: `%v`\n\n",err)
 				errs = append(errs, err)
