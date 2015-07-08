@@ -105,11 +105,11 @@ We strongly believe that tooling should fit naturally into the existing ecosyste
 
 Our approach to testing docker images is entirely driven by image layers. Now for a quick crash course into what we mean by that.
 
-![docker layers](/docs/layers_base.svg)
+![docker layers](/docs/layers_base.png)
 
 So lets say you build an image from a Dockerfile, it produces individual layers like in the diagram above. Each command in a Dockerfile produces a layer. The `FROM` command is special, it will build your Dockerfile layers ontop of the layers from another image.
 
-![docker test](/docs/layers_test.svg)
+![docker test](/docs/layers_test.png)
 
 What this allows us to do is build your image from a Dockerfile, then build the tests as layers on top of your image. Assuming all of the commands in the tests can succesfully generate layers on top of your image, you have a guarentee that the environment inside of your image is stable enough to run the tasks represented in your tests. We can then throw away the test layers and ship the base image now that we know it is in a stable state!
 
