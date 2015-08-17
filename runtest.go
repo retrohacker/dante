@@ -35,6 +35,28 @@ func buildImage(name string, path string) (output string, err error) {
 	// We tag the the image with the provided name and don't let the build use
 	// the image cache. We also set the working directory for the child process
 	// to be the location of the Dockerfile
+	cmd := exec.Command("docker", "build", "-t", name, ".")
+	cmd.Dir, err = filepath.Abs(path)
+	fmt.Printf("Command: `%v`, Args: `%v`, Dir: `%v`\n", cmd.Path, cmd.Args, cmd.Dir)
+	if err != nil {
+		return
+	}
+
+	// Execute the child process and get the both stdout and stderr
+	outputBytes, err = cmd.CombinedOutput()
+	output = string(outputBytes)
+	return
+}
+
+func buildImageNoCache(name string, path string) (output string, err error) {
+	// Begin declaring local variables
+	var outputBytes []byte
+	// End declaring local variables
+
+	// Build a command object that will spawn docker build as a child process.
+	// We tag the the image with the provided name and don't let the build use
+	// the image cache. We also set the working directory for the child process
+	// to be the location of the Dockerfile
 	cmd := exec.Command("docker", "build", "--no-cache", "-t", name, ".")
 	cmd.Dir, err = filepath.Abs(path)
 	fmt.Printf("Command: `%v`, Args: `%v`, Dir: `%v`\n", cmd.Path, cmd.Args, cmd.Dir)
@@ -173,7 +195,7 @@ func runTests(inventory Inventory) (errs []error) {
 			fmt.Printf("Building `%v` from `%v`", testname, tempDir)
 
 			// Build our test image against our base image
-			output, err = buildImage(testname, tempDir)
+			output, err = buildImageNoCache(testname, tempDir)
 			fmt.Printf("```\n%v\n```\n", string(output))
 			if err != nil {
 				// If the build fails, add the error to the list of errors encountered.
