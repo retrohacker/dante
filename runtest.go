@@ -123,7 +123,7 @@ func runTests(inventory Inventory) (errs []error) {
 		fmt.Printf("# Running `%v`\n\n## Building Image\n\n", image["name"].(string))
 
 		// First, we build the image itself
-		output, err = buildImage(image["name"].(string), image["path"].(string))
+		output, err = buildImageNoCache(image["name"].(string), image["path"].(string))
 		fmt.Printf("```\n%v\n```\n", string(output))
 
 		// If an error happens while building the image, we can't run the tests
