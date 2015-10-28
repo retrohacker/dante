@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 /*
@@ -19,6 +20,8 @@ deleting user data. If this assumption proves not to be safe, we will have to
 rethink this constant.
 */
 const tempPath = ".~tmp.test"
+
+var errs []error
 
 /*
 buildImage will take a path to a docker image, and execute docker build as a
@@ -37,7 +40,6 @@ func buildImage(name string, path string) (output string, err error) {
 	// to be the location of the Dockerfile
 	cmd := exec.Command("docker", "build", "-t", name, ".")
 	cmd.Dir, err = filepath.Abs(path)
-	fmt.Printf("Command: `%v`, Args: `%v`, Dir: `%v`\n", cmd.Path, cmd.Args, cmd.Dir)
 	if err != nil {
 		return
 	}
@@ -59,7 +61,6 @@ func buildImageNoCache(name string, path string) (output string, err error) {
 	// to be the location of the Dockerfile
 	cmd := exec.Command("docker", "build", "--no-cache", "-t", name, ".")
 	cmd.Dir, err = filepath.Abs(path)
-	fmt.Printf("Command: `%v`, Args: `%v`, Dir: `%v`\n", cmd.Path, cmd.Args, cmd.Dir)
 	if err != nil {
 		return
 	}
@@ -93,50 +94,50 @@ func getTestArray(image map[string]interface{}) (tests []string) {
 	return
 }
 
-/*
-runTests iterates through an Inventory object and builds every image, followed
-by running each of the tests listed against the newly built image. We attempt
-to build every image defined in inventory, and return an array of errors if any
-are encountered.
-*/
-func runTests(inventory Inventory) (errs []error) {
-	// Begin declaring local variables
-	var tempDir, output string
-	var err error
-	// End declaring local variables
+func testWorker(id int, wg *sync.WaitGroup, lockOutput sync.Mutex, input chan map[string]interface{}) {
+	localTempPath := tempPath + strconv.Itoa(id)
+	for {
+		// Get next image
+		image := <-input
 
-	// Grab an absolute path to the directory we will store our tests in.
-	// We need to use a temporary directory since we will be modifying the
-	// contents of the directory to build the tests against the base image.
-	tempDir, err = filepath.Abs(tempPath)
-	if err != nil {
-		// If we can't create a temp directory, we can't run our tests.If we can't
-		// run our tests, this tool is pretty much worthless.
-		panic(fmt.Sprintf("Unable to get absolute path to temp directory: `%v`\n\n", err))
-	}
+		// Setup local variables
+		var output = fmt.Sprintf("# Tested image `%v`\n\n## Build Log\n\n", image["name"].(string))
+		var resultStr string
+		var err error
+		var tempDir string
 
-	// We iterate through every image, one by one, building the image and running
-	// its tests
-	for _, image := range inventory["images"] {
+		// Grab an absolute path to the directory we will store our tests in.
+		// We need to use a temporary directory since we will be modifying the
+		// contents of the directory to build the tests against the base image.
+		tempDir, err = filepath.Abs(localTempPath)
+		if err != nil {
+			// If we can't create a temp directory, we can't run our tests.If we can't
+			// run our tests, this tool is pretty much worthless.
+			panic(fmt.Sprintf("Unable to get absolute path to temp directory: `%v`\n\n", err))
+		}
+
 		// Reset error to ensure previous iterations don't polute this one
 		err = nil
-		fmt.Printf("# Running `%v`\n\n## Building Image\n\n", image["name"].(string))
 
 		// First, we build the image itself
-		output, err = buildImageNoCache(image["name"].(string), image["path"].(string))
-		fmt.Printf("```\n%v\n```\n", string(output))
+		resultStr, err = buildImageNoCache(image["name"].(string), image["path"].(string))
+		output = output + fmt.Sprintf("```\n%v\n```\n", string(resultStr))
 
 		// If an error happens while building the image, we can't run the tests
 		// against them, so we continue onto the next image.
 		if err != nil {
-			fmt.Printf("**Failed** with error: `%v`\n\n", err)
+			output = output + fmt.Sprintf("**Failed** with error: `%v`\n\n", err)
+			lockOutput.Lock()
+			fmt.Print(output)
 			errs = append(errs, err)
+			lockOutput.Unlock()
+			(*wg).Done()
 			continue
 		}
 
 		// Get an array of tests we want to run against our newly built image
 		tests := getTestArray(image)
-		fmt.Printf("Array of tests: `%v`\n", tests)
+		output = output + fmt.Sprintf("Array of tests: `%v`\n\n", tests)
 
 		// We will now iterate across each test building them using our newly built
 		// image as a base.
@@ -145,7 +146,7 @@ func runTests(inventory Inventory) (errs []error) {
 			err = nil
 			var testpath string
 			var contents []byte
-			fmt.Printf("## Running test #%v\n\n", testNum)
+			output = output + fmt.Sprintf("## Running test #%v\n\n", testNum)
 
 			// Generate a unique name for the test image that we will build
 			testname := image["name"].(string) + "-test" + strconv.Itoa(testNum+1)
@@ -153,8 +154,11 @@ func runTests(inventory Inventory) (errs []error) {
 			// Get the absolute path to the test Dockerfile and context location
 			testpath, err = filepath.Abs(test)
 			if err != nil {
-				fmt.Printf("**Failed** Could not get path to file `%v`: `%v`\n\n", test, err)
+				output = output + fmt.Sprintf("**Failed** Could not get path to file `%v`: `%v`\n\n", test, err)
+				lockOutput.Lock()
+				fmt.Print(output)
 				errs = append(errs, err)
+				lockOutput.Unlock()
 				// If we can't get the path, we can't build the image. Moving on.
 				continue
 			}
@@ -173,7 +177,7 @@ func runTests(inventory Inventory) (errs []error) {
 			// where we copy the test's context and are then able to safely mutate
 			// the context's state to suite our tool. We delete the temp directory
 			// when finished.
-			fmt.Printf("Copying `%v` to `%v`\n", testpath, tempDir)
+			output = output + fmt.Sprintf("Copying `%v` to `%v`\n", testpath, tempDir)
 			copyDir(testpath, tempDir)
 
 			// tmpDir should already be an absolute path. So we are now getting
@@ -186,29 +190,69 @@ func runTests(inventory Inventory) (errs []error) {
 			prependToFile(dockerfile, "FROM "+image["name"].(string)+"\n")
 			contents, err = ioutil.ReadFile(dockerfile)
 			if err != nil {
-				fmt.Printf("**Failed** Could not get contents of Dockerfile `%v`: `%v`\n\n", test, err)
+				output = output + fmt.Sprintf("**Failed** Could not get contents of Dockerfile `%v`: `%v`\n\n", test, err)
+				lockOutput.Lock()
+				fmt.Print(output)
 				errs = append(errs, err)
+				lockOutput.Unlock()
 				// If we can't get the Dockerfile, we can't build the image. Moving on.
 				continue
 			}
-			fmt.Printf("Contents of dockerfile `%v`:\n\n```\n%v\n```\n\n", dockerfile, string(contents))
-			fmt.Printf("Building `%v` from `%v`", testname, tempDir)
+			output = output + fmt.Sprintf("Contents of dockerfile `%v`:\n\n```\n%v\n```\n\n", dockerfile, string(contents))
+			output = output + fmt.Sprintf("Building `%v` from `%v`", testname, tempDir)
 
 			// Build our test image against our base image
-			output, err = buildImageNoCache(testname, tempDir)
-			fmt.Printf("```\n%v\n```\n", string(output))
+			resultStr, err = buildImageNoCache(testname, tempDir)
+			output = output + fmt.Sprintf("```\n%v\n```\n", string(resultStr))
 			if err != nil {
 				// If the build fails, add the error to the list of errors encountered.
-				fmt.Printf("**Failed** with error: `%v`\n\n", err)
+				output = output + fmt.Sprintf("**Failed** with error: `%v`\n\n", err)
+				lockOutput.Lock()
+				fmt.Print(output)
 				errs = append(errs, err)
+				lockOutput.Unlock()
 				continue
 			}
 		}
+		// Remove the temp directory so we don't leave behind any trace of the tool.
+		// NOTE: We are assuming the tool will run to completion. If you abort while
+		// building a test, this directory will be left behind. This is something we
+		// need to address moving forward.
+		os.RemoveAll(tempDir)
+
+		// Finished with this image
+		lockOutput.Lock()
+		fmt.Print(output)
+		lockOutput.Unlock()
+		(*wg).Done()
+		continue
 	}
-	// Remove the temp directory so we don't leave behind any trace of the tool.
-	// NOTE: We are assuming the tool will run to completion. If you abort while
-	// building a test, this directory will be left behind. This is something we
-	// need to address moving forward.
-	os.RemoveAll(tempDir)
-	return
+}
+
+/*
+runTests iterates through an Inventory object and builds every image, followed
+by running each of the tests listed against the newly built image. We attempt
+to build every image defined in inventory, and return an array of errors if any
+are encountered.
+*/
+func runTests(threads int, inventory Inventory) []error {
+	// Begin declaring local variables
+	var wg sync.WaitGroup
+	var lockOutput sync.Mutex
+	var input chan map[string]interface{} = make(chan map[string]interface{})
+	// End declaring local variables
+
+	// Start a pool of workers to handle builds
+	for i := 0; i < threads; i++ {
+		go testWorker(i, &wg, lockOutput, input)
+	}
+
+	// We iterate through every image, one by one, building the image and running
+	// its tests
+	for _, image := range inventory["images"] {
+		wg.Add(1)
+		input <- image
+	}
+	wg.Wait()
+	return errs
 }
