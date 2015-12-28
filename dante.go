@@ -78,13 +78,9 @@ func populateInventory() {
 func test(c *cli.Context) {
 	populateInventory()
 
-	if c.Int("retries") != 0 {
-		fmt.Printf("# Retries not implemented yet!\n\n")
-	}
-
 	var errs []error
 	// Build the images and run the tests defined in the inventory file
-	errs = runTests(c.Int("parallel"), inventory)
+	errs = runTests(c.Int("parallel"), c.Int("retries"), inventory)
 
 	// Determine if the tests passed or failed
 	if len(errs) > 0 {

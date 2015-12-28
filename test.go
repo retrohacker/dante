@@ -1,10 +1,13 @@
+/*
+test.go contains all of the logic specific to the test command
+*/
+
 package main
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -22,54 +25,6 @@ rethink this constant.
 const tempPath = ".~tmp.test"
 
 var errs []error
-
-/*
-buildImage will take a path to a docker image, and execute docker build as a
-child process. It will tag the docker built image as name, this allows us to
-later build other images using this one as a base. It captures stdout and
-stderr returning them both in output.
-*/
-func buildImage(name string, path string) (output string, err error) {
-	// Begin declaring local variables
-	var outputBytes []byte
-	// End declaring local variables
-
-	// Build a command object that will spawn docker build as a child process.
-	// We tag the the image with the provided name and don't let the build use
-	// the image cache. We also set the working directory for the child process
-	// to be the location of the Dockerfile
-	cmd := exec.Command("docker", "build", "-t", name, ".")
-	cmd.Dir, err = filepath.Abs(path)
-	if err != nil {
-		return
-	}
-
-	// Execute the child process and get the both stdout and stderr
-	outputBytes, err = cmd.CombinedOutput()
-	output = string(outputBytes)
-	return
-}
-
-func buildImageNoCache(name string, path string) (output string, err error) {
-	// Begin declaring local variables
-	var outputBytes []byte
-	// End declaring local variables
-
-	// Build a command object that will spawn docker build as a child process.
-	// We tag the the image with the provided name and don't let the build use
-	// the image cache. We also set the working directory for the child process
-	// to be the location of the Dockerfile
-	cmd := exec.Command("docker", "build", "--no-cache", "-t", name, ".")
-	cmd.Dir, err = filepath.Abs(path)
-	if err != nil {
-		return
-	}
-
-	// Execute the child process and get the both stdout and stderr
-	outputBytes, err = cmd.CombinedOutput()
-	output = string(outputBytes)
-	return
-}
 
 /*
 getTestArray takes a single image from the inventory.yml file and converts
@@ -120,7 +75,7 @@ func testWorker(id int, wg *sync.WaitGroup, lockOutput sync.Mutex, input chan ma
 		err = nil
 
 		// First, we build the image itself
-		resultStr, err = buildImageNoCache(image["name"].(string), image["path"].(string))
+		resultStr, err = buildImage(image["name"].(string), image["path"].(string), DockerOpts{})
 		output = output + fmt.Sprintf("```\n%v\n```\n", string(resultStr))
 
 		// If an error happens while building the image, we can't run the tests
@@ -202,7 +157,7 @@ func testWorker(id int, wg *sync.WaitGroup, lockOutput sync.Mutex, input chan ma
 			output = output + fmt.Sprintf("Building `%v` from `%v`", testname, tempDir)
 
 			// Build our test image against our base image
-			resultStr, err = buildImageNoCache(testname, tempDir)
+			resultStr, err = buildImage(testname, tempDir, DockerOpts{})
 			output = output + fmt.Sprintf("```\n%v\n```\n", string(resultStr))
 			if err != nil {
 				// If the build fails, add the error to the list of errors encountered.
@@ -235,7 +190,7 @@ by running each of the tests listed against the newly built image. We attempt
 to build every image defined in inventory, and return an array of errors if any
 are encountered.
 */
-func runTests(threads int, inventory Inventory) []error {
+func runTests(threads int, retries int, inventory Inventory) []error {
 	// Begin declaring local variables
 	var wg sync.WaitGroup
 	var lockOutput sync.Mutex
