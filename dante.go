@@ -78,25 +78,34 @@ func populateInventory() {
 func test(c *cli.Context) {
 	populateInventory()
 
-	var errs []error
+	opts := TestOpts{
+		Threads: c.Int("parallel"),
+		Retries: c.Int("retries"),
+	}
+
+	/* Scrub Input */
+	if opts.Threads < 1 {
+		opts.Threads = 1
+	}
+
+	if opts.Retries < 0 {
+		opts.Retries = 0
+	}
+
 	// Build the images and run the tests defined in the inventory file
-	errs = runTests(c.Int("parallel"), c.Int("retries"), inventory)
+	errs := runTests(inventory, opts)
 
 	// Determine if the tests passed or failed
-	if len(errs) > 0 {
+	if errs > 0 {
 		// Not all tests passed, this makes docker-test a sad panda
-		fmt.Printf("# Conclusion\n\n%v tests failed.\n\n", len(errs))
-		for i, err := range errs {
-			fmt.Printf("%v. `%v`\n", i+1, err)
-		}
+		fmt.Printf("# Conclusion\n\n%v tests failed.\n\n", errs)
 		os.Exit(1)
 	} else {
 		// All tests and builds completed succesfully!
-		fmt.Printf("# Conclusion\n\nall tests passed.\n\n", len(errs))
+		fmt.Printf("# Conclusion\n\nall tests passed.\n\n")
 		os.Exit(0)
 	}
 
-	fmt.Println("Building")
 }
 
 func push(*cli.Context) {
