@@ -37,12 +37,6 @@ Example: `dante push`
 
 Pushes any images that exist on the host machine containing the tags defined in `inventoy.yml` to the Docker registry (not including tests).
 
-## release
-
-Example `dante release`
-
-Equivalent to running `dante test && dante push`
-
 ## Flags
 
 All commands support this set of flags:
@@ -136,8 +130,6 @@ You will end up with the following Docker images (assuming the image builds and 
 * `dockeri.co:server`: the base image
 * `dockeri.co:server-test1`: the image built from the http directory
 * `dockeri.co:server-test2`: the image built from the badges directory
-
-Each docker image will have the resulting build and test logs saved to it as a label for later review.
 
 
 # Philosophy
