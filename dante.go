@@ -91,11 +91,19 @@ func test(c *cli.Context) {
 		// Not all tests passed, this makes docker-test a sad panda
 		fmt.Printf("# Conclusion\n\n%v tests failed.\n\n", errs)
 		os.Exit(1)
-	} else {
-		// All tests and builds completed succesfully!
-		fmt.Printf("# Conclusion\n\nall tests passed.\n\n")
-		os.Exit(0)
 	}
+	// All tests and builds completed succesfully!
+	fmt.Printf("# Conclusion\n\nall tests passed.\n\n")
+
+	// Tag images with aliases
+	errs = runAlias(inventory)
+	if errs > 0 {
+		fmt.Printf("# Conclusion\n\n%v aliases failed.\n\n", errs)
+		os.Exit(1)
+	}
+
+	fmt.Printf("# Conclusion\n\nall aliases succeeded.\n\n", errs)
+	os.Exit(0)
 
 }
 

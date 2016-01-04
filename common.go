@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+type ImageDefinition map[string]interface{}
+
 type Job struct {
 	Image   ImageDefinition
 	Retries int

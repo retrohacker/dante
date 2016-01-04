@@ -1,7 +1,9 @@
 images:
   - name: "wblankenship/test:1"
     path: "./debian/jessie/node/0.12.0"
-    test: ["./tests/node","./tests/node12"]
+    #test: ["./tests/node","./tests/node12"]
+    alias: ["wblankenship/test:3","wblankenship/test:4"]
   - name: "wblankenship/test:2"
     path: "./debian/jessie/iojs/1.4.2"
     test: "./tests/iojs"
+    alias: "wblankenship/test:5"

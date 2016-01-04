@@ -8,7 +8,18 @@ func runPushes(inventory Inventory, opts TestOpts) (errs int) {
 
 	input := make(chan Job)
 	output := make(chan Job)
-	done := make(chan bool, len(inventory["images"]))
+
+	// Get job count
+	jobs := 0
+	for _, image := range inventory["images"] {
+		jobs++
+		aliases := getAliasArray(image)
+		for range aliases {
+			jobs++
+		}
+	}
+
+	done := make(chan bool, jobs)
 
 	for i := 0; i < opts.Threads; i++ {
 		go pushWorker(input, output)
@@ -22,10 +33,20 @@ func runPushes(inventory Inventory, opts TestOpts) (errs int) {
 			Retries: opts.Retries,
 			Id:      i,
 		}
+		aliases := getAliasArray(image)
+		for _, alias := range aliases {
+			aliasImage := make(ImageDefinition)
+			aliasImage["name"] = alias
+			input <- Job{
+				Image:   aliasImage,
+				Retries: opts.Retries,
+				Id:      i,
+			}
+		}
 	}
 
 	errs = 0
-	for i := 0; i < len(inventory["images"]); i++ {
+	for i := 0; i < jobs; i++ {
 		if <-done == false {
 			errs++
 		}
