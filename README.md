@@ -1,5 +1,6 @@
 Dante
-===
+=====
+
 _Build tests against Docker images by harnessing the power of layers_
 
 ![dante](/docs/dante1.jpg)
@@ -14,24 +15,47 @@ Dante is the perfect tool for CI servers and local development. We do not recomm
 
 # Usage
 
-Using Dante is a 4 step process.
+## Setup
+
+Getting ready to use Dante is a 3 step process.
 
 1. Naturally, you need to have one or more environments defined as `Dockerfile`s
 2. Define tests that run in your environment using `Dockerfile`s
 3. Define an `inventory.yml` file, which describes the structure of your project directory
-4. Lastly, run `dante` to validate your images
+
+## Commands
+
+### test
+
+Example: `dante test`
+
+Builds all the images and subsequently runs tests on top of them.
+
+### push
+
+Example: `dante push`
+
+Pushes any images that exist on the host machine containing the tags defined in `inventoy.yml` to the Docker registry (not including tests).
+
+## Flags
+
+All commands support this set of flags:
+
+* `-j COUNT` runs COUNT jobs in parallel.
+* `-r COUNT` retry failed jobs COUNT times.
 
 ### `inventory.yml` File
 
 The tool is driven by a single yaml file in the base of your project directory named `inventory.yml`.
 
-A `inventory.yml` which may look like this:
+An `inventory.yml` may look like this:
 
 ```yaml
 images:
   - name: "wblankenship/dockeri.co:server"
     path: "./dockerico/server"
     test: ["./dockerico/tests/http","./dockerico/tests/badges"]
+    alias: ["wblankenship/dockeri.co:latest"]
   - name: "wblankenship/dockeri.co:database"
     path: "./dockerico/database"
     test: "./dockerico/tests/db"
@@ -76,6 +100,10 @@ When Dante runs, it will build each layer defined in the test `Dockerfile` on to
 It is safe to include dependencies in the directory with the `Dockerfile` as demonstrated with the line `ADD dependency.tar /`. Dante will upload the entire working directory as context to the docker daemon when building the image.
 
 You may have noticed the missing `FROM` command in the `Dockerfile`. This is intentional as Dante will build this `Dockerfile` from the image it is a test for. If you are interested in how this works or why we do it this way, refer to our [Philosophy](#philosophy) section.
+
+### Aliases
+
+Aliases are used to label a single image with mutliple tags. As opposed to rebuilding an image, which risks creating non-identical hashes for images that should be aliased, the `alias` key will use the `docker tag` command to create a proper alias for each value in the key's array.
 
 ### Output
 
@@ -141,3 +169,9 @@ We modeled our inventory file after the `docker-compose.yml` specification. This
 ### Output as Markdown
 
 The motivation for writting Markdown to stdout is to allow easy consumption of the results on both the Docker Registry and GitHub. Moving forward, we may include flags that change this behaviour.
+
+# Changlog
+
+# v1.1.0
+
+* Added `j` flag for parallel builds
