@@ -78,19 +78,10 @@ func populateInventory() {
 func test(c *cli.Context) {
 	populateInventory()
 
-	opts := TestOpts{
+	opts := scrub_input(TestOpts{
 		Threads: c.Int("parallel"),
 		Retries: c.Int("retries"),
-	}
-
-	/* Scrub Input */
-	if opts.Threads < 1 {
-		opts.Threads = 1
-	}
-
-	if opts.Retries < 0 {
-		opts.Retries = 0
-	}
+	})
 
 	// Build the images and run the tests defined in the inventory file
 	errs := runTests(inventory, opts)
@@ -108,9 +99,37 @@ func test(c *cli.Context) {
 
 }
 
-func push(*cli.Context) {
+func push(c *cli.Context) {
 	populateInventory()
 
-	fmt.Println("# Push not implemented yet")
-	os.Exit(1)
+	opts := scrub_input(TestOpts{
+		Threads: c.Int("parallel"),
+		Retries: c.Int("retries"),
+	})
+
+	errs := runPushes(inventory, opts)
+
+	// Determine if the tests passed or failed
+	if errs > 0 {
+		// Not all tests passed, this makes docker-test a sad panda
+		fmt.Printf("# Conclusion\n\n%v pushes failed.\n\n", errs)
+		os.Exit(1)
+	} else {
+		// All tests and builds completed succesfully!
+		fmt.Printf("# Conclusion\n\nall pushes succeeded.\n\n")
+		os.Exit(0)
+	}
+
+}
+
+func scrub_input(opts TestOpts) TestOpts {
+	if opts.Threads < 1 {
+		opts.Threads = 1
+	}
+
+	if opts.Retries < 0 {
+		opts.Retries = 0
+	}
+
+	return opts
 }

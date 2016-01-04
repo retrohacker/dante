@@ -53,14 +53,6 @@ type TestOpts struct {
 	Retries int
 }
 
-type BuildJob struct {
-	Image   ImageDefinition
-	Retries int
-	Output  string
-	Success bool
-	Id      int
-}
-
 type ImageDefinition map[string]interface{}
 
 /*
@@ -71,18 +63,18 @@ are encountered.
 */
 func runTests(inventory Inventory, opts TestOpts) (errs int) {
 
-	input := make(chan BuildJob)
-	output := make(chan BuildJob)
+	input := make(chan Job)
+	output := make(chan Job)
 	done := make(chan bool, len(inventory["images"]))
 
 	for i := 0; i < opts.Threads; i++ {
 		go testWorker(input, output)
 	}
 
-	go testReporter(output, done)
+	go reporter(output, done)
 
 	for i, image := range inventory["images"] {
-		input <- BuildJob{
+		input <- Job{
 			Image:   image,
 			Retries: opts.Retries,
 			Id:      i,
@@ -99,7 +91,7 @@ func runTests(inventory Inventory, opts TestOpts) (errs int) {
 	return
 }
 
-func testWorker(input chan BuildJob, output chan BuildJob) {
+func testWorker(input chan Job, output chan Job) {
 	for {
 		tmp := <-input
 		var resultString string
@@ -125,7 +117,7 @@ func testWorker(input chan BuildJob, output chan BuildJob) {
 	}
 }
 
-func testBuildImage(tmp BuildJob) (string, BuildJob) {
+func testBuildImage(tmp Job) (string, Job) {
 
 	var stdout string
 
@@ -152,7 +144,7 @@ func testBuildImage(tmp BuildJob) (string, BuildJob) {
 	return stdout, tmp
 }
 
-func testBuildTests(tmp BuildJob) (string, BuildJob) {
+func testBuildTests(tmp Job) (string, Job) {
 
 	// Get an array of tests we want to run against our newly built image
 	tests := getTestArray(tmp.Image)
@@ -244,12 +236,4 @@ func testBuildTest(image ImageDefinition, id int, retries int, testNum int, test
 		}
 	}
 	return
-}
-
-func testReporter(output chan BuildJob, done chan bool) {
-	for {
-		tmp := <-output
-		fmt.Printf("%v", tmp.Output)
-		done <- tmp.Success
-	}
 }
