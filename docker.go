@@ -66,3 +66,7 @@ stdout and stderr returning them both in output
 func pushImage(name string) (output string, err error) {
 	return execDocker("/", "push", name)
 }
+
+func dockerAlias(name string, alias string) (output string, err error) {
+	return execDocker("/", "tag", "-f", name, alias)
+}

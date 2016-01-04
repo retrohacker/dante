@@ -53,8 +53,6 @@ type TestOpts struct {
 	Retries int
 }
 
-type ImageDefinition map[string]interface{}
-
 /*
 runTests iterates through an Inventory object and builds every image, followed
 by running each of the tests listed against the newly built image. We attempt
