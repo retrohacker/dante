@@ -172,6 +172,18 @@ The motivation for writting Markdown to stdout is to allow easy consumption of t
 
 # Changlog
 
-# v1.1.0
+## v2.1.0
+
+ * `alias` key now supported in `inventory.yml`
+ * `test` now tags aliases after successful build
+ * `push` now pushes both images and their aliases
+
+## v2.0.0
+
+ * Subcommands Added (`test` and `push`)
+ * Dante can now push to repositories from an `inventory.yml` file
+ * Implemented a `-r` flag for retrying failed tests, builds, and pushes.
+
+## v1.1.0
 
 * Added `j` flag for parallel builds
